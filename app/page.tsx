@@ -3,26 +3,25 @@
 import { useEffect, useState } from "react";
 import { publicClient } from "../utils/client";
 import abi from "../utils/abi.json";
-import { createWalletClient, custom } from "viem";
+// 1. Import the necessary types from viem
+import { createWalletClient, custom, WalletClient, Address } from "viem";
 import { sepolia } from "viem/chains";
 
-const CONTRACT_ADDRESS = "0xbd5d1419E9920a2269c89d7b07dff9457fF625c8"; // replace with your deployed contract address
+const CONTRACT_ADDRESS = "0xbd5d1419E9920a2269c89d7b07dff9457fF625c8";
 
-// Wallet client for writes (MetaMask)
-let walletClient: any;
-if (typeof window !== "undefined" && (window as any).ethereum) {
-  walletClient = createWalletClient({
-    chain: sepolia,
-    transport: custom((window as any).ethereum),
-  });
+// 2. Define a type for the window.ethereum object to avoid using 'any'
+interface CustomWindow extends Window {
+  ethereum?: any;
 }
 
 export default function Home() {
-  const [message, setMessage] = useState("");
-  const [newMessage, setNewMessage] = useState("");
-  const [walletAddress, setWalletAddress] = useState("");
+  const [message, setMessage] = useState<string>("");
+  const [newMessage, setNewMessage] = useState<string>("");
+  // 3. Use the specific 'Address' type for the wallet address
+  const [walletAddress, setWalletAddress] = useState<Address | "">("");
+  // 4. Use the specific 'WalletClient' type instead of 'any'
+  const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
 
-  // Read contract on page load
   useEffect(() => {
     async function fetchMessage() {
       try {
@@ -31,25 +30,41 @@ export default function Home() {
           abi,
           functionName: "getMessage",
         });
-        setMessage((result as string).toString());
+        setMessage(result as string);
       } catch (err) {
         console.error("Error reading contract:", err);
       }
     }
-
     fetchMessage();
   }, []);
 
-  // Connect MetaMask
   async function connectWallet() {
-    if (!(window as any).ethereum) return alert("MetaMask not found!");
-    const accounts = await (window as any).ethereum.request({ method: "eth_requestAccounts" });
-    setWalletAddress(accounts[0]);
+    const customWindow = window as CustomWindow;
+    if (typeof customWindow.ethereum === "undefined") {
+      return alert("MetaMask not found!");
+    }
+
+    try {
+      const [account] = await customWindow.ethereum.request({
+        method: "eth_requestAccounts",
+      });
+      setWalletAddress(account);
+
+      const client = createWalletClient({
+        account,
+        chain: sepolia,
+        transport: custom(customWindow.ethereum),
+      });
+      setWalletClient(client);
+    } catch (err) {
+      console.error("Error connecting wallet:", err);
+    }
   }
 
-  // Write new message
   async function updateMessage() {
-    if (!walletClient) return alert("Wallet not connected!");
+    if (!walletClient || !walletAddress) {
+      return alert("Please connect your wallet first!");
+    }
 
     try {
       await walletClient.writeContract({
@@ -57,16 +72,16 @@ export default function Home() {
         abi,
         functionName: "setMessage",
         args: [newMessage],
-        account: walletAddress as `0x${string}`,
+        account: walletAddress,
+        chain: undefined
       });
 
-      // Refresh after update
       const result = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi,
         functionName: "getMessage",
       });
-      setMessage((result as string).toString());
+      setMessage(result as string);
       setNewMessage("");
     } catch (err) {
       console.error("Error writing to contract:", err);
@@ -76,9 +91,7 @@ export default function Home() {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-12 space-y-6">
       <h1 className="text-4xl font-bold">StringStore DApp</h1>
-
       <p className="text-xl">Contract says: {message}</p>
-
       {!walletAddress ? (
         <button
           onClick={connectWallet}
