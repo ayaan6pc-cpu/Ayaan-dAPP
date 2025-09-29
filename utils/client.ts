@@ -6,3 +6,4 @@ export const client = createPublicClient({
   chain: sepolia,
   transport: http(process.env.NEXT_PUBLIC_RPC_URL!),
 })
+
