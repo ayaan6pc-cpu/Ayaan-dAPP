@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import { publicClient } from "../utils/client";
 import abi from "../utils/abi.json";
 // 1. Import the necessary types from viem
-import { createWalletClient, custom, WalletClient, Address } from "viem";
+import { createWalletClient, custom, WalletClient, Address, EIP1193Provider } from "viem";
 import { sepolia } from "viem/chains";
 
 const CONTRACT_ADDRESS = "0xbd5d1419E9920a2269c89d7b07dff9457fF625c8";
 
 // 2. Define a type for the window.ethereum object to avoid using 'any'
 interface CustomWindow extends Window {
-  ethereum?: any;
+  ethereum?: EIP1193Provider;
 }
 
 export default function Home() {
